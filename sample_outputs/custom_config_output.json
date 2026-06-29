@@ -1,0 +1,13 @@
+[
+  {
+    "_note": "This is a placeholder. Run the pipeline to generate real output.",
+    "_command": "python -m src.cli sample_inputs/recruiter.csv sample_inputs/notes.txt --config configs/example_custom_config.json --output sample_outputs/custom_config_output.json",
+    "full_name": "Alice Johnson",
+    "primary_email": "alice@example.com",
+    "phone": "+14155550101",
+    "skills": ["Python", "Kubernetes", "Docker", "AWS", "CI/CD"],
+    "current_title": "Software Engineer",
+    "current_company": "Acme Corp",
+    "overall_confidence": 0.82
+  }
+]

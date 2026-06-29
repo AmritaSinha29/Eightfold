@@ -1,0 +1,17 @@
+{
+  "candidates": [
+    {
+      "candidate_name": "Alice Johnson",
+      "primary_email": "alice@example.com",
+      "cell_phone": "415-555-0101",
+      "current_employer": "Acme Corp",
+      "current_position": "Software Engineer",
+      "skills_raw": ["Python", "React", "AWS", "Docker"],
+      "city": "San Francisco",
+      "state": "CA",
+      "country": "United States",
+      "linkedin_url": "https://linkedin.com/in/alicejohnson",
+      "github_url": "https://github.com/alicejohnson"
+    }
+  ]
+}

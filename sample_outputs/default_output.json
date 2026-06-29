@@ -1,0 +1,32 @@
+[
+  {
+    "_note": "This is a placeholder. Run the pipeline to generate real output.",
+    "_command": "python -m src.cli sample_inputs/recruiter.csv sample_inputs/notes.txt --config configs/default_config.json --output sample_outputs/default_output.json",
+    "candidate_id": "PLACEHOLDER",
+    "full_name": "Alice Johnson",
+    "emails": ["alice@example.com"],
+    "phones": ["+14155550101"],
+    "location": {"city": "San Francisco", "region": "CA", "country": "US"},
+    "links": {"linkedin": null, "github": null, "portfolio": null, "other": []},
+    "headline": null,
+    "years_experience": null,
+    "skills": [
+      {"name": "Python",             "confidence": 0.85, "sources": ["csv", "notes"]},
+      {"name": "Kubernetes",         "confidence": 0.72, "sources": ["notes"]},
+      {"name": "Docker",             "confidence": 0.72, "sources": ["notes"]},
+      {"name": "AWS",                "confidence": 0.72, "sources": ["notes"]},
+      {"name": "CI/CD",              "confidence": 0.72, "sources": ["notes"]}
+    ],
+    "experience": [
+      {"company": "Acme Corp", "title": "Software Engineer", "start": null, "end": null, "summary": null}
+    ],
+    "education": [],
+    "provenance": [
+      {"field": "full_name",  "source": "csv",   "method": "direct_extract"},
+      {"field": "emails",     "source": "csv",   "method": "direct_extract"},
+      {"field": "phones",     "source": "csv",   "method": "direct_extract"},
+      {"field": "skills",     "source": "notes", "method": "text_heuristic"}
+    ],
+    "overall_confidence": 0.82
+  }
+]

@@ -1,0 +1,16 @@
+Candidate: Alice Johnson
+Email: alice@example.com
+Phone: 415-555-0101
+
+Strong Python and distributed systems background.
+Has experience with Kubernetes and Docker in production environments.
+Mentioned she's worked with AWS and GCP.
+Familiar with CI/CD pipelines (GitHub Actions, Jenkins).
+
+Location: San Francisco area.
+
+Additional notes from recruiter Jane:
+- Excellent communication skills
+- Interested in backend/infra roles
+- Available from August 2026
+- Strong references from Acme Corp

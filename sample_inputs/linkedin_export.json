@@ -1,0 +1,38 @@
+{
+  "firstName": "Alice",
+  "lastName": "Johnson",
+  "headline": "Software Engineer | Python | Distributed Systems | AWS",
+  "geoLocationName": "San Francisco Bay Area",
+  "emailAddress": "alice@example.com",
+  "positions": [
+    {
+      "companyName": "Acme Corp",
+      "title": "Software Engineer",
+      "timePeriod": {
+        "startDate": {"month": 3, "year": 2022},
+        "endDate": null
+      },
+      "description": "Building scalable backend services using Python, FastAPI, and AWS. Led migration of legacy monolith to microservices."
+    },
+    {
+      "companyName": "TechStartup Inc.",
+      "title": "Junior Software Engineer",
+      "timePeriod": {
+        "startDate": {"month": 7, "year": 2020},
+        "endDate": {"month": 2, "year": 2022}
+      },
+      "description": "Full-stack development with React and Node.js."
+    }
+  ],
+  "educations": [
+    {
+      "schoolName": "UC Berkeley",
+      "degreeName": "Bachelor of Science",
+      "fieldOfStudy": "Computer Science",
+      "timePeriod": {
+        "endDate": {"year": 2020}
+      }
+    }
+  ],
+  "skills": ["Python", "AWS", "React", "Docker", "Kubernetes", "FastAPI", "Distributed Systems"]
+}
