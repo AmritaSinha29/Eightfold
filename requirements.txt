@@ -1,0 +1,20 @@
+# Core pipeline dependencies
+pydantic>=2.0
+phonenumbers>=8.13
+dateparser>=1.2
+pycountry>=22.3
+pdfplumber>=0.10
+python-docx>=1.1
+requests>=2.31
+click>=8.1
+rapidfuzz>=3.6
+jsonschema>=4.21
+
+# Testing
+pytest>=8.0
+pytest-cov>=4.1
+
+# Optional: NLP for richer resume / notes extraction
+# spacy>=3.7
+# To download the model after installing spacy:
+#   python -m spacy download en_core_web_sm
