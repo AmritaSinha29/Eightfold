@@ -1,126 +1,152 @@
-"""Adapter for ATS JSON blobs with non-canonical field names.
-
-Because every ATS vendor uses different field names, this adapter uses a
-configurable field map to translate ATS keys into canonical RawRecord fields.
-The map can be loaded from an external JSON file via load_field_map().
-"""
+"""Adapter for ATS JSON blobs with non-canonical field names."""
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any, Optional
 
 from src.adapters.base import BaseAdapter
 from src.models.raw_record import RawEducation, RawExperience, RawRecord, RawSkill
 
+logger = logging.getLogger(__name__)
+
 
 class ATSJsonAdapter(BaseAdapter):
-    """Reads ATS JSON blobs and maps vendor-specific fields to RawRecord.
-
-    The JSON may be a single candidate object or an array of objects.
-    Nested ATS field paths (e.g. "contact.email") are supported in the
-    field map using dot notation.
-    """
+    """Reads ATS JSON blobs and maps vendor-specific fields to RawRecord."""
 
     SOURCE_NAME = "ats_json"
 
-    # Fallback mapping when no external map is provided.
-    # Format: { ats_field_name_or_path: canonical_raw_record_attribute }
     DEFAULT_FIELD_MAP: dict[str, str] = {
-        # TODO: Populate with real ATS examples after seeing sample data
-        "candidate_name": "full_name",
-        "primary_email": "emails",
-        "cell_phone": "phones",
-        "current_employer": "extra.current_company",
-        "current_position": "extra.title",
-        "city": "location_city",
-        "state": "location_region",
-        "country": "location_country",
+        "candidate_name":    "full_name",
+        "primary_email":     "emails",
+        "cell_phone":        "phones",
+        "city":              "location_city",
+        "state":             "location_region",
+        "country":           "location_country",
+        "linkedin_url":      "linkedin_url",
+        "github_url":        "github_url",
+        "portfolio_url":     "portfolio_url",
+        "headline":          "headline",
+        "years_experience":  "years_experience",
     }
 
-    def __init__(self, field_map: Optional[dict[str, str]] = None) -> None:
-        """Initialize with an optional custom ATS field mapping.
+    # Fields that require special handling beyond simple scalar assignment.
+    _LIST_FIELDS = {"emails", "phones"}
+    _SKILLS_KEY = "skills_raw"
+    _EXPERIENCE_KEY = "experience"
+    _EDUCATION_KEY = "education"
 
-        Args:
-            field_map: Maps ATS field names → RawRecord attribute names.
-                       If None, DEFAULT_FIELD_MAP is used.
-        """
-        # TODO: Merge provided field_map with DEFAULT_FIELD_MAP
-        #       (provided values take precedence over defaults)
-        self.field_map: dict[str, str] = field_map or dict(self.DEFAULT_FIELD_MAP)
+    def __init__(self, field_map: Optional[dict[str, str]] = None) -> None:
+        self.field_map: dict[str, str] = {**self.DEFAULT_FIELD_MAP, **(field_map or {})}
 
     def can_handle(self, path: str) -> bool:
-        """Return True if path has a .json extension.
-
-        Args:
-            path: File path to check.
-        """
-        # TODO: return Path(path).suffix.lower() == ".json"
-        # TODO: Exclude linkedin_*.json which is handled by LinkedInAdapter
-        raise NotImplementedError
+        p = Path(path)
+        return p.suffix.lower() == ".json" and "linkedin" not in p.stem.lower()
 
     def load(self, path: str) -> list[RawRecord]:
-        """Parse an ATS JSON file and return one RawRecord per candidate entry.
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            logger.warning("ATS JSON file not found: %s", path)
+            return []
+        except json.JSONDecodeError as exc:
+            logger.warning("ATS JSON decode error in %s: %s", path, exc)
+            return []
+        except Exception as exc:
+            logger.warning("Unexpected error loading %s: %s", path, exc)
+            return []
 
-        The JSON root may be a dict (single candidate), a list of dicts, or
-        an object with a "candidates" key containing a list.
+        if isinstance(data, list):
+            entries = data
+        elif isinstance(data, dict) and "candidates" in data:
+            entries = data["candidates"]
+        elif isinstance(data, dict):
+            entries = [data]
+        else:
+            return []
 
-        Args:
-            path: Path to the .json file.
+        return [self._entry_to_record(entry, path) for entry in entries if isinstance(entry, dict)]
 
-        Returns:
-            List of RawRecord objects; empty list on any failure.
-        """
-        # TODO: open + json.load
-        # TODO: Detect root shape: dict → [dict]; list → list; {"candidates": [...]} → list
-        # TODO: [_entry_to_record(entry) for entry in entries]
-        # TODO: Catch FileNotFoundError, json.JSONDecodeError, Exception → return []
-        raise NotImplementedError
+    def _entry_to_record(self, entry: dict[str, Any], source_path: str) -> RawRecord:
+        record = RawRecord(source_name=self.SOURCE_NAME, source_path=source_path)
+        mapped_keys: set[str] = set()
 
-    def _entry_to_record(self, entry: dict[str, Any]) -> RawRecord:
-        """Convert one ATS JSON entry dict to a RawRecord using self.field_map.
+        for ats_key, canonical in self.field_map.items():
+            value = self._get_nested(entry, ats_key)
+            if value is None:
+                continue
+            mapped_keys.add(ats_key.split(".")[0])
 
-        Args:
-            entry: Raw dict from the ATS JSON blob.
+            if canonical == "emails":
+                vals = value if isinstance(value, list) else [value]
+                record.emails.extend(str(v).strip() for v in vals if v)
+            elif canonical == "phones":
+                vals = value if isinstance(value, list) else [value]
+                record.phones.extend(str(v).strip() for v in vals if v)
+            elif canonical == "years_experience":
+                try:
+                    record.years_experience = float(value)
+                except (ValueError, TypeError):
+                    pass
+            elif hasattr(record, canonical):
+                setattr(record, canonical, str(value).strip() if value else None)
 
-        Returns:
-            Populated RawRecord; unmapped keys go to extra.
-        """
-        # TODO: Walk self.field_map: get_nested(entry, ats_key) → set on record
-        # TODO: Handle list-typed fields (emails, phones, skills_raw)
-        # TODO: Build RawExperience from experience sub-array if present
-        # TODO: Store unmapped keys in extra
-        raise NotImplementedError
+        # Skills array
+        skills_raw = entry.get(self._SKILLS_KEY)
+        if skills_raw and isinstance(skills_raw, list):
+            mapped_keys.add(self._SKILLS_KEY)
+            record.skills = [RawSkill(name=str(s).strip(), source_name=self.SOURCE_NAME) for s in skills_raw if s]
+
+        # Experience array
+        experience_raw = entry.get(self._EXPERIENCE_KEY)
+        if experience_raw and isinstance(experience_raw, list):
+            mapped_keys.add(self._EXPERIENCE_KEY)
+            record.experience = [self._parse_experience(e) for e in experience_raw if isinstance(e, dict)]
+
+        # Education array
+        education_raw = entry.get(self._EDUCATION_KEY)
+        if education_raw and isinstance(education_raw, list):
+            mapped_keys.add(self._EDUCATION_KEY)
+            record.education = [self._parse_education(e) for e in education_raw if isinstance(e, dict)]
+
+        # Unmapped keys → extra
+        record.extra = {k: v for k, v in entry.items() if k not in mapped_keys and k not in self.field_map}
+
+        return record
+
+    def _parse_experience(self, e: dict[str, Any]) -> RawExperience:
+        return RawExperience(
+            company=e.get("company") or e.get("companyName") or e.get("employer"),
+            title=e.get("title") or e.get("position") or e.get("role"),
+            start=e.get("start") or e.get("start_date") or e.get("startDate"),
+            end=e.get("end") or e.get("end_date") or e.get("endDate"),
+            summary=e.get("summary") or e.get("description"),
+        )
+
+    def _parse_education(self, e: dict[str, Any]) -> RawEducation:
+        return RawEducation(
+            institution=e.get("institution") or e.get("school") or e.get("schoolName"),
+            degree=e.get("degree") or e.get("degreeName"),
+            field=e.get("field") or e.get("fieldOfStudy"),
+            end_year=str(e["end_year"]) if e.get("end_year") else None,
+        )
 
     def _get_nested(self, data: dict[str, Any], dotted_key: str) -> Any:
-        """Retrieve a value from a nested dict using dot-notation path.
-
-        Args:
-            data: The dict to traverse.
-            dotted_key: Dot-separated key path, e.g. "contact.email".
-
-        Returns:
-            The value at the path, or None if any key is missing.
-        """
-        # TODO: Split dotted_key by "."
-        # TODO: Walk data[k] for each segment, returning None on KeyError
-        raise NotImplementedError
+        node: Any = data
+        for segment in dotted_key.split("."):
+            if not isinstance(node, dict):
+                return None
+            node = node.get(segment)
+            if node is None:
+                return None
+        return node
 
     @staticmethod
     def load_field_map(map_path: str) -> dict[str, str]:
-        """Load an ATS field-map JSON file from disk.
-
-        Args:
-            map_path: Path to the ats_field_map.json file.
-
-        Returns:
-            Dict mapping ATS field names to RawRecord attribute names.
-
-        Raises:
-            FileNotFoundError: If map_path does not exist.
-            ValueError: If the file is not a flat string→string JSON object.
-        """
-        # TODO: open + json.load
-        # TODO: Validate it is a flat {str: str} dict
-        # TODO: Raise ValueError with a clear message if not
-        raise NotImplementedError
+        with open(map_path, encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in data.items()):
+            raise ValueError(f"ATS field map must be a flat {{str: str}} JSON object: {map_path}")
+        return data
