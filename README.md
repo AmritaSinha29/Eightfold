@@ -66,7 +66,7 @@ python -m src.cli sample_inputs/recruiter.csv \
   sample_inputs/notes.txt
 
 # Custom config — minimal output with field renames
-python -m src.cli sample_inputs/recruiter.csv sample_inputs/notes.txt \
+python -m src.cli sample_inputs/recruiter.csv sample_inputs/notes.txt 
   --config configs/example_custom_config.json
 
 # Skills-only config — candidate_id, name, and canonicalized skill list
