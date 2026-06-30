@@ -1,32 +1,389 @@
 [
   {
-    "_note": "This is a placeholder. Run the pipeline to generate real output.",
-    "_command": "python -m src.cli sample_inputs/recruiter.csv sample_inputs/notes.txt --config configs/default_config.json --output sample_outputs/default_output.json",
-    "candidate_id": "PLACEHOLDER",
+    "candidate_id": "ffc6f8664177e7c8",
     "full_name": "Alice Johnson",
-    "emails": ["alice@example.com"],
-    "phones": ["+14155550101"],
-    "location": {"city": "San Francisco", "region": "CA", "country": "US"},
-    "links": {"linkedin": null, "github": null, "portfolio": null, "other": []},
-    "headline": null,
-    "years_experience": null,
+    "emails": [
+      "alice@example.com"
+    ],
+    "phones": [
+      "+14155550101"
+    ],
+    "location": {
+      "city": "San Francisco",
+      "region": "CA",
+      "country": "US"
+    },
+    "links": {
+      "linkedin": "https://linkedin.com/in/alicejohnson",
+      "github": "https://github.com/alicejohnson",
+      "portfolio": null,
+      "other": []
+    },
+    "headline": "Software Engineer | Python | Distributed Systems | AWS",
+    "years_experience": 5.8,
     "skills": [
-      {"name": "Python",             "confidence": 0.85, "sources": ["csv", "notes"]},
-      {"name": "Kubernetes",         "confidence": 0.72, "sources": ["notes"]},
-      {"name": "Docker",             "confidence": 0.72, "sources": ["notes"]},
-      {"name": "AWS",                "confidence": 0.72, "sources": ["notes"]},
-      {"name": "CI/CD",              "confidence": 0.72, "sources": ["notes"]}
+      {
+        "name": "Python",
+        "confidence": 0.8,
+        "sources": [
+          "ats_json",
+          "linkedin",
+          "notes"
+        ]
+      },
+      {
+        "name": "AWS",
+        "confidence": 0.8,
+        "sources": [
+          "ats_json",
+          "linkedin",
+          "notes"
+        ]
+      },
+      {
+        "name": "Docker",
+        "confidence": 0.8,
+        "sources": [
+          "ats_json",
+          "linkedin",
+          "notes"
+        ]
+      },
+      {
+        "name": "React",
+        "confidence": 0.6000000000000001,
+        "sources": [
+          "ats_json",
+          "linkedin"
+        ]
+      },
+      {
+        "name": "Kubernetes",
+        "confidence": 0.6000000000000001,
+        "sources": [
+          "linkedin",
+          "notes"
+        ]
+      },
+      {
+        "name": "Distributed Systems",
+        "confidence": 0.6000000000000001,
+        "sources": [
+          "linkedin",
+          "notes"
+        ]
+      },
+      {
+        "name": "FastAPI",
+        "confidence": 0.4,
+        "sources": [
+          "linkedin"
+        ]
+      },
+      {
+        "name": "GitHub Actions",
+        "confidence": 0.4,
+        "sources": [
+          "notes"
+        ]
+      },
+      {
+        "name": "Jenkins",
+        "confidence": 0.4,
+        "sources": [
+          "notes"
+        ]
+      },
+      {
+        "name": "GitHub",
+        "confidence": 0.4,
+        "sources": [
+          "notes"
+        ]
+      },
+      {
+        "name": "CI/CD",
+        "confidence": 0.4,
+        "sources": [
+          "notes"
+        ]
+      },
+      {
+        "name": "REST APIs",
+        "confidence": 0.4,
+        "sources": [
+          "notes"
+        ]
+      },
+      {
+        "name": "Google Cloud Platform",
+        "confidence": 0.4,
+        "sources": [
+          "notes"
+        ]
+      },
+      {
+        "name": "Git",
+        "confidence": 0.4,
+        "sources": [
+          "notes"
+        ]
+      },
+      {
+        "name": "TypeScript",
+        "confidence": 0.4,
+        "sources": [
+          "notes"
+        ]
+      },
+      {
+        "name": "Elasticsearch",
+        "confidence": 0.4,
+        "sources": [
+          "notes"
+        ]
+      },
+      {
+        "name": "R",
+        "confidence": 0.4,
+        "sources": [
+          "notes"
+        ]
+      }
     ],
     "experience": [
-      {"company": "Acme Corp", "title": "Software Engineer", "start": null, "end": null, "summary": null}
+      {
+        "company": "Acme Corp",
+        "title": "Software Engineer",
+        "start": "2022-03",
+        "end": null,
+        "summary": "Building scalable backend services using Python, FastAPI, and AWS. Led migration of legacy monolith to microservices."
+      },
+      {
+        "company": "TechStartup Inc.",
+        "title": "Junior Software Engineer",
+        "start": "2020-07",
+        "end": "2022-02",
+        "summary": "Full-stack development with React and Node.js."
+      }
+    ],
+    "education": [
+      {
+        "institution": "UC Berkeley",
+        "degree": "Bachelor of Science",
+        "field": "Computer Science",
+        "end_year": 2020
+      }
+    ],
+    "overall_confidence": 0.7044,
+    "provenance": [
+      {
+        "field": "full_name",
+        "source": "csv",
+        "method": "direct_extract"
+      },
+      {
+        "field": "emails",
+        "source": "csv",
+        "method": "direct_extract"
+      },
+      {
+        "field": "emails",
+        "source": "ats_json",
+        "method": "direct_extract"
+      },
+      {
+        "field": "emails",
+        "source": "linkedin",
+        "method": "direct_extract"
+      },
+      {
+        "field": "emails",
+        "source": "notes",
+        "method": "direct_extract"
+      },
+      {
+        "field": "phones",
+        "source": "csv",
+        "method": "direct_extract"
+      },
+      {
+        "field": "phones",
+        "source": "ats_json",
+        "method": "direct_extract"
+      },
+      {
+        "field": "phones",
+        "source": "notes",
+        "method": "direct_extract"
+      },
+      {
+        "field": "location.city",
+        "source": "ats_json",
+        "method": "direct_extract"
+      },
+      {
+        "field": "location.region",
+        "source": "ats_json",
+        "method": "direct_extract"
+      },
+      {
+        "field": "location.country",
+        "source": "ats_json",
+        "method": "direct_extract"
+      },
+      {
+        "field": "links.linkedin",
+        "source": "ats_json",
+        "method": "direct_extract"
+      },
+      {
+        "field": "links.github",
+        "source": "ats_json",
+        "method": "direct_extract"
+      },
+      {
+        "field": "headline",
+        "source": "linkedin",
+        "method": "direct_extract"
+      },
+      {
+        "field": "skills[0]",
+        "source": "ats_json",
+        "method": "direct_extract"
+      },
+      {
+        "field": "skills[1]",
+        "source": "ats_json",
+        "method": "direct_extract"
+      },
+      {
+        "field": "skills[2]",
+        "source": "ats_json",
+        "method": "direct_extract"
+      },
+      {
+        "field": "skills[3]",
+        "source": "ats_json",
+        "method": "direct_extract"
+      },
+      {
+        "field": "skills[4]",
+        "source": "linkedin",
+        "method": "direct_extract"
+      },
+      {
+        "field": "skills[5]",
+        "source": "linkedin",
+        "method": "direct_extract"
+      },
+      {
+        "field": "skills[6]",
+        "source": "linkedin",
+        "method": "direct_extract"
+      },
+      {
+        "field": "skills[7]",
+        "source": "notes",
+        "method": "direct_extract"
+      },
+      {
+        "field": "skills[8]",
+        "source": "notes",
+        "method": "direct_extract"
+      },
+      {
+        "field": "skills[9]",
+        "source": "notes",
+        "method": "direct_extract"
+      },
+      {
+        "field": "skills[10]",
+        "source": "notes",
+        "method": "direct_extract"
+      },
+      {
+        "field": "skills[11]",
+        "source": "notes",
+        "method": "direct_extract"
+      },
+      {
+        "field": "skills[12]",
+        "source": "notes",
+        "method": "direct_extract"
+      },
+      {
+        "field": "skills[13]",
+        "source": "notes",
+        "method": "direct_extract"
+      },
+      {
+        "field": "skills[14]",
+        "source": "notes",
+        "method": "direct_extract"
+      },
+      {
+        "field": "skills[15]",
+        "source": "notes",
+        "method": "direct_extract"
+      },
+      {
+        "field": "skills[16]",
+        "source": "notes",
+        "method": "direct_extract"
+      }
+    ]
+  },
+  {
+    "candidate_id": "b7ee59b809fb4717",
+    "full_name": "Bob Smith",
+    "emails": [
+      "bob.smith@example.com"
+    ],
+    "phones": [
+      "+16505550202"
+    ],
+    "location": {
+      "city": null,
+      "region": null,
+      "country": null
+    },
+    "links": {
+      "linkedin": null,
+      "github": null,
+      "portfolio": null,
+      "other": []
+    },
+    "headline": null,
+    "years_experience": null,
+    "skills": [],
+    "experience": [
+      {
+        "company": "StartupXYZ",
+        "title": "Data Scientist",
+        "start": null,
+        "end": null,
+        "summary": null
+      }
     ],
     "education": [],
+    "overall_confidence": 0.4219,
     "provenance": [
-      {"field": "full_name",  "source": "csv",   "method": "direct_extract"},
-      {"field": "emails",     "source": "csv",   "method": "direct_extract"},
-      {"field": "phones",     "source": "csv",   "method": "direct_extract"},
-      {"field": "skills",     "source": "notes", "method": "text_heuristic"}
-    ],
-    "overall_confidence": 0.82
+      {
+        "field": "full_name",
+        "source": "csv",
+        "method": "direct_extract"
+      },
+      {
+        "field": "emails",
+        "source": "csv",
+        "method": "direct_extract"
+      },
+      {
+        "field": "phones",
+        "source": "csv",
+        "method": "direct_extract"
+      }
+    ]
   }
 ]
