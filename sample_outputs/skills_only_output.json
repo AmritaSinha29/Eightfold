@@ -1,0 +1,28 @@
+[
+  {
+    "candidate_id": "ffc6f8664177e7c8",
+    "full_name": "Alice Johnson",
+    "skills": [
+      "Distributed Systems",
+      "GitHub Actions",
+      "Kubernetes",
+      "Jenkins",
+      "Python",
+      "Docker",
+      "GitHub",
+      "CI/CD",
+      "REST APIs",
+      "AWS",
+      "Google Cloud Platform",
+      "Git",
+      "TypeScript",
+      "Elasticsearch",
+      "R"
+    ]
+  },
+  {
+    "candidate_id": "b7ee59b809fb4717",
+    "full_name": "Bob Smith",
+    "skills": []
+  }
+]
