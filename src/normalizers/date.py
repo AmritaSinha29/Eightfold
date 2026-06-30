@@ -1,77 +1,74 @@
-"""Date normalization to YYYY-MM format and years-of-experience computation.
-
-Uses the dateparser library for flexible multi-format parsing. The PREFER_DAY_OF_MONTH
-setting is used so that a month-year input always resolves to the first of the month,
-making the output deterministic.
-"""
+"""Date normalization to YYYY-MM format and years-of-experience computation."""
 from __future__ import annotations
 
+from datetime import date
 from typing import Optional
 
+import dateparser
 
-# Strings that represent an open-ended / current role end date.
-OPEN_ENDED_TOKENS = frozenset({"present", "current", "now", "ongoing", "today", "–"})
+
+OPEN_ENDED_TOKENS = frozenset({"present", "current", "now", "ongoing", "today", "–", "-"})
 
 
 def normalize_date(raw: str) -> Optional[str]:
     """Parse a raw date string and return it in YYYY-MM format.
 
-    Handles common formats: "March 2021", "03/2021", "2021-03-15",
-    "Jan 2020", "2020" (year-only → January assumed), "Present" → None.
-
-    Args:
-        raw: Raw date string from any source.
-
-    Returns:
-        "YYYY-MM" string on success; None for open-ended dates or if the
-        input cannot be parsed.
-
-    Examples:
-        >>> normalize_date("March 2021")
-        '2021-03'
-        >>> normalize_date("Present")
-        None
-        >>> normalize_date("2021")
-        '2021-01'
-        >>> normalize_date("garbage")
-        None
+    Returns None for open-ended tokens (Present, Current) or unparseable input.
     """
-    # TODO: Strip and check raw.lower() against OPEN_ENDED_TOKENS → return None
-    # TODO: import dateparser
-    # TODO: parsed = dateparser.parse(raw, settings={"PREFER_DAY_OF_MONTH": "first", "RETURN_AS_TIMEZONE_AWARE": False})
-    # TODO: If parsed is None: return None
-    # TODO: return parsed.strftime("%Y-%m")
-    raise NotImplementedError
+    if not raw:
+        return None
+    stripped = raw.strip()
+    if stripped.lower() in OPEN_ENDED_TOKENS:
+        return None
+    parsed = dateparser.parse(
+        stripped,
+        settings={"PREFER_DAY_OF_MONTH": "first", "RETURN_AS_TIMEZONE_AWARE": False},
+    )
+    if parsed is None:
+        return None
+    return parsed.strftime("%Y-%m")
 
 
-def compute_years_experience(
-    experiences: list[dict],
-) -> Optional[float]:
-    """Compute total years of experience from a list of normalized experience dicts.
+def compute_years_experience(experiences: list[dict]) -> Optional[float]:
+    """Compute total years of experience, deduplicating overlapping intervals.
 
-    Handles overlapping date ranges by computing the union of all intervals
-    before summing, so concurrent roles are not double-counted.
-
-    Args:
-        experiences: List of dicts with "start" and "end" keys (YYYY-MM strings).
-                     "end" == None means a current role (uses today's date).
-
-    Returns:
-        Total years as a float rounded to one decimal place; None if no valid
-        date ranges were found.
-
-    Example:
-        experiences = [
-            {"start": "2020-01", "end": "2022-06"},
-            {"start": "2021-06", "end": None},   # current
-        ]
-        → union spans 2020-01 to today → computed total
+    Each dict must have "start" and "end" keys (YYYY-MM strings).
+    end=None means a current role; today's date is used as the end.
     """
-    # TODO: Parse each "YYYY-MM" to (year, month) int tuple
-    # TODO: Replace None end with (today.year, today.month)
-    # TODO: Drop entries where start parse fails
-    # TODO: Sort intervals by start
-    # TODO: Merge overlapping/adjacent intervals (standard sweep-line algorithm)
-    # TODO: Sum total months across merged intervals
-    # TODO: return round(total_months / 12.0, 1)
-    raise NotImplementedError
+    today = date.today()
+    intervals: list[tuple[int, int]] = []
+
+    for exp in experiences:
+        start_str = exp.get("start")
+        end_str = exp.get("end")
+        if not start_str:
+            continue
+        try:
+            sy, sm = map(int, start_str.split("-"))
+        except (ValueError, AttributeError):
+            continue
+        if end_str:
+            try:
+                ey, em = map(int, end_str.split("-"))
+            except (ValueError, AttributeError):
+                ey, em = today.year, today.month
+        else:
+            ey, em = today.year, today.month
+        start_mo = sy * 12 + sm
+        end_mo = ey * 12 + em
+        if end_mo > start_mo:
+            intervals.append((start_mo, end_mo))
+
+    if not intervals:
+        return None
+
+    intervals.sort()
+    merged = [list(intervals[0])]
+    for start, end in intervals[1:]:
+        if start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+
+    total_months = sum(end - start for start, end in merged)
+    return round(total_months / 12.0, 1)
