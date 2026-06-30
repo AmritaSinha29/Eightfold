@@ -60,6 +60,11 @@ python -m src.cli sample_inputs/recruiter.csv \
   sample_inputs/notes.txt \
   sample_inputs/sample_resume.docx
 
+# Include a LinkedIn export
+python -m src.cli sample_inputs/recruiter.csv \
+  sample_inputs/linkedin_export.json \
+  sample_inputs/notes.txt
+
 # Custom config — minimal output with field renames
 python -m src.cli sample_inputs/recruiter.csv sample_inputs/notes.txt \
   --config configs/example_custom_config.json
@@ -73,10 +78,7 @@ python -m src.cli sample_inputs/recruiter.csv sample_inputs/notes.txt \
   --config configs/default_config.json \
   --output sample_outputs/default_output.json
 
-# Include a LinkedIn export
-python -m src.cli sample_inputs/recruiter.csv \
-  sample_inputs/linkedin_export.json \
-  sample_inputs/notes.txt
+
 ```
 
 ### 3. Run tests
