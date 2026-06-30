@@ -1,88 +1,82 @@
-"""Runtime output config parser and validator.
-
-The config JSON controls:
-- Which canonical fields are included in the output
-- Renaming / remapping via "from" path expressions
-- Per-field normalization (e.g. E164 for phones)
-- Whether provenance and confidence are included
-- How to handle missing values: null | omit | error
-"""
+"""Runtime output config parser."""
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Literal, Optional
 
 
 @dataclass
 class FieldSpec:
-    """Specification for one output field declared in the config."""
-
-    path: str                           # output key name, e.g. "primary_email"
-    from_path: Optional[str] = None     # canonical path to read, e.g. "emails[0]"
-    type: Optional[str] = None          # expected type hint: "string", "string[]", "number", "object"
-    required: bool = False              # if True and value is missing, honor on_missing
-    normalize: Optional[str] = None     # normalization to apply: "E164", "canonical", etc.
+    path:       str
+    from_path:  Optional[str] = None
+    type:       Optional[str] = None
+    required:   bool          = False
+    normalize:  Optional[str] = None
 
 
 @dataclass
 class OutputConfig:
-    """Parsed and validated runtime output configuration."""
-
-    fields: list[FieldSpec] = field(default_factory=list)
-    include_confidence: bool = False
-    include_provenance: bool = False
-    on_missing: Literal["null", "omit", "error"] = "null"
+    fields:              list[FieldSpec] = field(default_factory=list)
+    include_confidence:  bool            = False
+    include_provenance:  bool            = False
+    on_missing:          Literal["null", "omit", "error"] = "null"
 
 
 def load_config(path: str) -> OutputConfig:
-    """Load and parse a runtime output config JSON file.
-
-    Args:
-        path: Path to the config .json file.
-
-    Returns:
-        Validated OutputConfig object.
-
-    Raises:
-        FileNotFoundError: If path does not exist.
-        ValueError: If the config JSON is malformed or fails schema validation.
-    """
-    # TODO: open + json.load
-    # TODO: return parse_config(raw_dict)
-    raise NotImplementedError
+    """Load and parse a runtime output config JSON file."""
+    with open(path, encoding="utf-8") as f:
+        raw = json.load(f)
+    return parse_config(raw)
 
 
 def parse_config(raw: dict[str, Any]) -> OutputConfig:
-    """Parse a raw config dict (from JSON) into an OutputConfig.
+    """Parse a raw config dict into an OutputConfig."""
+    if "fields" not in raw or not isinstance(raw["fields"], list):
+        raise ValueError("Config must contain a 'fields' list")
 
-    Args:
-        raw: Dict parsed from the runtime config JSON.
+    on_missing = raw.get("on_missing", "null")
+    if on_missing not in ("null", "omit", "error"):
+        raise ValueError(f"on_missing must be 'null', 'omit', or 'error'; got {on_missing!r}")
 
-    Returns:
-        OutputConfig with all FieldSpec entries populated.
+    fields: list[FieldSpec] = []
+    for item in raw["fields"]:
+        if not isinstance(item, dict) or "path" not in item:
+            raise ValueError(f"Each field spec must be a dict with 'path': {item!r}")
+        fields.append(FieldSpec(
+            path=item["path"],
+            from_path=item.get("from"),
+            type=item.get("type"),
+            required=item.get("required", False),
+            normalize=item.get("normalize"),
+        ))
 
-    Raises:
-        ValueError: If required top-level keys are missing, on_missing is
-                    invalid, or a field spec is malformed.
-    """
-    # TODO: Validate "fields" key exists and is a list
-    # TODO: parse each field dict → FieldSpec(path=..., from_path=..., ...)
-    # TODO: Validate on_missing in {"null", "omit", "error"}
-    # TODO: Assemble and return OutputConfig
-    raise NotImplementedError
+    return OutputConfig(
+        fields=fields,
+        include_confidence=raw.get("include_confidence", False),
+        include_provenance=raw.get("include_provenance", False),
+        on_missing=on_missing,
+    )
 
 
 def default_config() -> OutputConfig:
-    """Return the default OutputConfig that emits all canonical schema fields.
-
-    Used when no --config flag is provided on the CLI. Includes all fields,
-    provenance, and confidence.
-
-    Returns:
-        OutputConfig with one FieldSpec per canonical field.
-    """
-    # TODO: Build one FieldSpec for each canonical field (candidate_id, full_name, ...)
-    # TODO: include_confidence=True, include_provenance=True, on_missing="null"
-    raise NotImplementedError
+    """Return the default OutputConfig that emits all canonical schema fields."""
+    fields = [
+        FieldSpec(path="candidate_id",       type="string",   required=True),
+        FieldSpec(path="full_name",           type="string"),
+        FieldSpec(path="emails",              type="string[]"),
+        FieldSpec(path="phones",              type="string[]"),
+        FieldSpec(path="location",            type="object"),
+        FieldSpec(path="links",               type="object"),
+        FieldSpec(path="headline",            type="string"),
+        FieldSpec(path="years_experience",    type="number"),
+        FieldSpec(path="skills",              type="object[]"),
+        FieldSpec(path="experience",          type="object[]"),
+        FieldSpec(path="education",           type="object[]"),
+    ]
+    return OutputConfig(
+        fields=fields,
+        include_confidence=True,
+        include_provenance=True,
+        on_missing="null",
+    )
