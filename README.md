@@ -39,8 +39,6 @@ Input Sources
 JSON output (stdout or file)
 ```
 
-See `DESIGN.pdf` for the full one-page technical design document.
-
 ---
 
 ## Quick Start
@@ -57,18 +55,26 @@ pip install -r requirements.txt
 # Default schema — all canonical fields, printed to stdout
 python -m src.cli sample_inputs/recruiter.csv sample_inputs/notes.txt
 
-# Custom config — subset of fields with renames
+# Add a resume — merged with CSV and notes for the same candidate
+python -m src.cli sample_inputs/recruiter.csv \
+  sample_inputs/notes.txt \
+  sample_inputs/sample_resume.docx
+
+# Custom config — minimal output with field renames
 python -m src.cli sample_inputs/recruiter.csv sample_inputs/notes.txt \
   --config configs/example_custom_config.json
+
+# Skills-only config — candidate_id, name, and canonicalized skill list
+python -m src.cli sample_inputs/recruiter.csv sample_inputs/notes.txt \
+  --config configs/skills_only_config.json
 
 # Write output to file
 python -m src.cli sample_inputs/recruiter.csv sample_inputs/notes.txt \
   --config configs/default_config.json \
   --output sample_outputs/default_output.json
 
-# Include a GitHub profile and a LinkedIn export
+# Include a LinkedIn export
 python -m src.cli sample_inputs/recruiter.csv \
-  https://github.com/alicejohnson \
   sample_inputs/linkedin_export.json \
   sample_inputs/notes.txt
 ```
@@ -203,7 +209,7 @@ src/
 data/
 └── skill_aliases.json  Alias → canonical name map (e.g. "JS" → "JavaScript")
 sample_inputs/         Example inputs for each supported source type
-sample_outputs/        Pre-generated outputs (placeholder until pipeline is implemented)
+sample_outputs/        Pre-generated outputs for each config mode
 configs/               Default and example custom output configs
 tests/                 pytest test suite
 ```
