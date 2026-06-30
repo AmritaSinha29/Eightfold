@@ -1,18 +1,16 @@
-"""Adapter for public GitHub profile URLs via the REST API.
-
-Uses unauthenticated requests by default (60 req/hr rate limit).
-Pass a personal access token for a higher limit (5000 req/hr).
-
-Data extracted: name, bio, location, blog/website URL, and programming
-languages inferred from public repositories.
-"""
+"""Adapter for public GitHub profiles via the REST API."""
 from __future__ import annotations
 
+import logging
 from typing import Optional
+from urllib.parse import urlparse
+
+import requests
 
 from src.adapters.base import BaseAdapter
 from src.models.raw_record import RawRecord, RawSkill
 
+logger = logging.getLogger(__name__)
 
 GITHUB_API_BASE = "https://api.github.com"
 
@@ -20,108 +18,101 @@ GITHUB_API_BASE = "https://api.github.com"
 class GitHubAdapter(BaseAdapter):
     """Fetches candidate data from a public GitHub profile.
 
-    Skills are inferred from the primary language of each public repository.
-    The repo count for each language is stored in RawRecord.extra for
-    later use as a frequency signal in confidence scoring.
+    Skills are inferred from the primary language of each public repo.
     """
 
     SOURCE_NAME = "github"
 
     def __init__(self, token: Optional[str] = None) -> None:
-        """Initialize the GitHub adapter.
-
-        Args:
-            token: Optional GitHub personal access token for higher rate limits.
-                   If None, unauthenticated requests are used.
-        """
         self.token = token
-        # TODO: Build a requests.Session with Authorization header if token provided
-        # TODO: Set a User-Agent header (GitHub requires it)
-        self._session: Optional[object] = None  # placeholder; replace with requests.Session
+        session = requests.Session()
+        session.headers["User-Agent"] = "eightfold-candidate-pipeline/1.0"
+        if token:
+            session.headers["Authorization"] = f"Bearer {token}"
+        self._session = session
 
     def can_handle(self, path: str) -> bool:
-        """Return True if path is a github.com profile URL.
-
-        Args:
-            path: URL string to evaluate.
-
-        Returns:
-            True for URLs like "https://github.com/username" or "github.com/username".
-        """
-        # TODO: urllib.parse.urlparse(path) → check netloc contains "github.com"
-        # TODO: Ensure there is exactly one non-empty path segment (the username)
-        # TODO: Reject repo URLs (two path segments: user/repo)
-        raise NotImplementedError
+        try:
+            url = path if "://" in path else f"https://{path}"
+            parsed = urlparse(url)
+            if "github.com" not in (parsed.netloc or ""):
+                return False
+            segments = [s for s in parsed.path.strip("/").split("/") if s]
+            return len(segments) == 1
+        except Exception:
+            return False
 
     def load(self, path: str) -> list[RawRecord]:
-        """Fetch a GitHub profile and return a single-element list with a RawRecord.
+        try:
+            username = self._extract_username(path)
+            user_data = self._fetch_user(username)
+            if not user_data:
+                return []
+            repos_data = self._fetch_repos(username)
+            skills = self._extract_languages(repos_data)
 
-        Args:
-            path: A github.com profile URL, e.g. "https://github.com/octocat".
+            lang_counts: dict[str, int] = {}
+            for repo in repos_data:
+                lang = repo.get("language")
+                if lang:
+                    lang_counts[lang] = lang_counts.get(lang, 0) + 1
 
-        Returns:
-            [RawRecord] on success; [] on any network, auth, or API error.
-        """
-        # TODO: _extract_username(path) → username
-        # TODO: user_data = _fetch_user(username) → return [] if empty
-        # TODO: repos_data = _fetch_repos(username)
-        # TODO: skills = _extract_languages(repos_data)
-        # TODO: Assemble and return [RawRecord(...)]
-        raise NotImplementedError
+            blog = user_data.get("blog") or None
+            if blog and not blog.startswith("http"):
+                blog = f"https://{blog}"
+
+            return [RawRecord(
+                source_name=self.SOURCE_NAME,
+                source_path=path,
+                full_name=user_data.get("name"),
+                location_city=user_data.get("location"),
+                headline=user_data.get("bio"),
+                github_url=user_data.get("html_url"),
+                portfolio_url=blog,
+                skills=skills,
+                extra={
+                    "github_repo_count": user_data.get("public_repos", 0),
+                    "language_counts": lang_counts,
+                },
+            )]
+        except Exception as exc:
+            logger.warning("GitHub adapter error for %s: %s", path, exc)
+            return []
 
     def _extract_username(self, url: str) -> str:
-        """Parse a github.com URL and return the username path segment.
-
-        Args:
-            url: A validated github.com profile URL.
-
-        Returns:
-            The username string.
-        """
-        # TODO: urllib.parse.urlparse(url).path.strip("/").split("/")[0]
-        raise NotImplementedError
+        parsed = urlparse(url if "://" in url else f"https://{url}")
+        return parsed.path.strip("/").split("/")[0]
 
     def _fetch_user(self, username: str) -> dict:
-        """Call GET /users/{username} and return the JSON response dict.
-
-        Args:
-            username: GitHub username.
-
-        Returns:
-            User dict from the API; {} on HTTP error or timeout.
-        """
-        # TODO: self._session.get(f"{GITHUB_API_BASE}/users/{username}", timeout=10)
-        # TODO: Handle 404 (private/non-existent), 403 (rate limit), timeout → return {}
-        # TODO: response.raise_for_status() then response.json()
-        raise NotImplementedError
+        try:
+            resp = self._session.get(f"{GITHUB_API_BASE}/users/{username}", timeout=10)
+            if resp.status_code in (404, 403):
+                return {}
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as exc:
+            logger.warning("GitHub user fetch failed for %s: %s", username, exc)
+            return {}
 
     def _fetch_repos(self, username: str) -> list[dict]:
-        """Call GET /users/{username}/repos and return the JSON list.
-
-        Args:
-            username: GitHub username.
-
-        Returns:
-            List of repo dicts; [] on any error.
-        """
-        # TODO: GET {GITHUB_API_BASE}/users/{username}/repos?per_page=100&sort=updated
-        # TODO: Handle pagination: follow Link header if present
-        # TODO: Return [] on any error
-        raise NotImplementedError
+        try:
+            resp = self._session.get(
+                f"{GITHUB_API_BASE}/users/{username}/repos",
+                params={"per_page": 100, "sort": "updated"},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as exc:
+            logger.warning("GitHub repos fetch failed for %s: %s", username, exc)
+            return []
 
     def _extract_languages(self, repos: list[dict]) -> list[RawSkill]:
-        """Derive language skills from the repos list.
-
-        Each unique non-null language in the repos becomes one RawSkill.
-        The count of repos that use it is stored in RawRecord.extra later
-        as a frequency signal.
-
-        Args:
-            repos: List of repo dicts from the GitHub API.
-
-        Returns:
-            Deduplicated list of RawSkill objects.
-        """
-        # TODO: Collect repo["language"] for repos where repo["language"] is not None
-        # TODO: Deduplicate; return as [RawSkill(name=lang, source_name="github")]
-        raise NotImplementedError
+        seen: set[str] = set()
+        skills: list[RawSkill] = []
+        for repo in repos:
+            lang = repo.get("language")
+            if lang and lang not in seen:
+                seen.add(lang)
+                skills.append(RawSkill(name=lang, source_name=self.SOURCE_NAME))
+        return skills
