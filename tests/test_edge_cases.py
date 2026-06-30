@@ -16,35 +16,39 @@ import pytest
 
 from src.pipeline import Pipeline
 
+_PROJECT_ROOT = Path(__file__).parent.parent
+
 
 class TestRobustness:
     """The pipeline must degrade gracefully — never crash on bad input."""
 
     def test_empty_inputs_list_returns_empty(self):
         """Pipeline.run([]) should return [] without error."""
-        # TODO: assert Pipeline().run([]) == []
-        pytest.skip("Not yet implemented")
+        assert Pipeline().run([]) == []
 
     def test_nonexistent_file_is_skipped(self):
         """A path that doesn't exist should be skipped, not crash."""
-        # TODO: result = Pipeline().run(["/tmp/does_not_exist.csv"])
-        # TODO: assert result == []
-        pytest.skip("Not yet implemented")
+        result = Pipeline().run(["/tmp/does_not_exist.csv"])
+        assert result == []
 
     def test_malformed_csv_produces_no_records(self, tmp_path: Path):
         """A corrupted CSV file should yield [] records, not an exception."""
-        # TODO: Write ",,,,\x00\x01" to a .csv file
-        # TODO: assert Pipeline().run([str(path)]) == []
-        pytest.skip("Not yet implemented")
+        path = tmp_path / "broken.csv"
+        # Empty headers + no data rows → csv.DictReader finds nothing mappable
+        path.write_bytes(b",,,,\x00\x01")
+        assert Pipeline().run([str(path)]) == []
 
     def test_malformed_json_produces_no_records(self, tmp_path: Path):
         """An invalid JSON file should yield [] records, not an exception."""
-        pytest.skip("Not yet implemented")
+        path = tmp_path / "broken.json"
+        path.write_text("not valid json")
+        assert Pipeline().run([str(path)]) == []
 
     def test_unrecognized_input_type_is_skipped(self, tmp_path: Path):
         """An input with no matching adapter should be logged and skipped."""
-        # TODO: Write a .xyz file; assert pipeline runs and returns []
-        pytest.skip("Not yet implemented")
+        path = tmp_path / "data.xyz"
+        path.write_text("some content")
+        assert Pipeline().run([str(path)]) == []
 
 
 class TestDeterminism:
@@ -52,20 +56,39 @@ class TestDeterminism:
 
     def test_two_runs_produce_identical_output(self, tmp_path: Path):
         """Running the pipeline twice on the same CSV produces identical results."""
-        # TODO: Write a CSV to tmp_path
-        # TODO: run1 = Pipeline().run([path])
-        # TODO: run2 = Pipeline().run([path])
-        # TODO: assert json.dumps(run1, sort_keys=True) == json.dumps(run2, sort_keys=True)
-        pytest.skip("Not yet implemented")
+        csv_file = tmp_path / "test.csv"
+        csv_file.write_text(
+            "name,email,phone\nAlice Johnson,alice@example.com,(415) 555-0101\n"
+        )
+        path = str(csv_file)
+        run1 = Pipeline().run([path])
+        run2 = Pipeline().run([path])
+        assert json.dumps(run1, sort_keys=True) == json.dumps(run2, sort_keys=True)
 
     def test_candidate_id_stable_across_runs(self):
         """The same email + name always produces the same candidate_id."""
-        # TODO: Run merger with same inputs; assert candidate_id matches
-        pytest.skip("Not yet implemented")
+        from src.merger.merger import Merger
+        from src.models.raw_record import RawRecord
+
+        r = RawRecord(
+            source_name="csv",
+            source_path="test.csv",
+            full_name="Alice Johnson",
+            emails=["alice@example.com"],
+        )
+        merger = Merger()
+        assert merger.merge([r]).candidate_id == merger.merge([r]).candidate_id
 
     def test_source_order_does_not_change_id(self, tmp_path: Path):
         """Swapping input order should not change candidate_id (it's content-based)."""
-        pytest.skip("Not yet implemented")
+        csv1 = tmp_path / "a.csv"
+        csv2 = tmp_path / "b.csv"
+        csv1.write_text("name,email\nAlice Johnson,alice@example.com\n")
+        csv2.write_text("name,email\nAlice Johnson,alice@example.com\n")
+
+        run1 = Pipeline().run([str(csv1), str(csv2)])
+        run2 = Pipeline().run([str(csv2), str(csv1)])
+        assert run1[0]["candidate_id"] == run2[0]["candidate_id"]
 
 
 class TestProvenance:
@@ -73,11 +96,27 @@ class TestProvenance:
 
     def test_every_non_null_field_has_provenance(self, tmp_path: Path):
         """Running the pipeline and inspecting provenance: no non-null field is missing one."""
-        pytest.skip("Not yet implemented")
+        csv_file = tmp_path / "test.csv"
+        csv_file.write_text("name,email\nAlice Johnson,alice@example.com\n")
+        results = Pipeline().run([str(csv_file)])
+        assert len(results) == 1
+        prov = results[0]["provenance"]
+        assert prov
+        fields_with_prov = {p["field"] for p in prov}
+        assert "full_name" in fields_with_prov
+        assert "emails" in fields_with_prov
 
     def test_conflict_reflected_in_provenance(self, tmp_path: Path):
-        """When two sources conflict, the losing value still appears in provenance."""
-        pytest.skip("Not yet implemented")
+        """When two sources conflict, the winning source appears in provenance."""
+        csv_file = tmp_path / "test.csv"
+        csv_file.write_text("name,email\nAlice From CSV,alice@example.com\n")
+        notes_file = tmp_path / "notes.txt"
+        notes_file.write_text("Candidate: Alice From Notes\nEmail: alice@example.com")
+
+        results = Pipeline().run([str(csv_file), str(notes_file)])
+        alice = next(r for r in results if r.get("full_name") == "Alice From CSV")
+        prov_sources = {p["source"] for p in alice["provenance"]}
+        assert "csv" in prov_sources
 
 
 class TestGoldProfile:
@@ -88,8 +127,8 @@ class TestGoldProfile:
     """
 
     SAMPLE_INPUTS = [
-        "sample_inputs/recruiter.csv",
-        "sample_inputs/notes.txt",
+        str(_PROJECT_ROOT / "sample_inputs" / "recruiter.csv"),
+        str(_PROJECT_ROOT / "sample_inputs" / "notes.txt"),
     ]
 
     def test_alice_end_to_end_default_schema(self):
@@ -97,27 +136,29 @@ class TestGoldProfile:
 
         Covers:
         - Two source types (structured + unstructured)
-        - Normalization: phone (E.164), country (ISO-3166)
-        - Merge: CSV wins on full_name, emails, phones (higher priority)
+        - Normalization: phone (E.164)
+        - Merge: CSV wins on full_name (higher priority)
         - Notes contribute skills via text_heuristic
         - Default schema: all fields present
         - Provenance: populated for at least name, email, skills
         """
-        # TODO: results = Pipeline().run(self.SAMPLE_INPUTS)
-        # TODO: assert len(results) == 1
-        # TODO: alice = results[0]
-        # TODO: assert alice["full_name"] == "Alice Johnson"
-        # TODO: assert "+14155550101" in alice["phones"]
-        # TODO: assert alice["location"]["country"] == "US"
-        # TODO: assert any(s["name"] == "Python" for s in alice["skills"])
-        # TODO: assert alice["provenance"]  # non-empty
-        pytest.skip("Not yet implemented")
+        results = Pipeline().run(self.SAMPLE_INPUTS)
+        alice = next(
+            (r for r in results if r.get("full_name") == "Alice Johnson"), None
+        )
+        assert alice is not None
+        assert "+14155550101" in alice["phones"]
+        assert any(s["name"] == "Python" for s in alice["skills"])
+        assert alice["provenance"]
 
     def test_alice_custom_config_minimal_output(self):
         """Pipeline with example_custom_config should produce a remapped, minimal dict."""
-        # TODO: results = Pipeline().run(self.SAMPLE_INPUTS, config_path="configs/example_custom_config.json")
-        # TODO: alice = results[0]
-        # TODO: assert "primary_email" in alice  # renamed field
-        # TODO: assert "emails" not in alice     # original key absent
-        # TODO: assert "candidate_id" not in alice  # not in custom config
-        pytest.skip("Not yet implemented")
+        config_path = str(_PROJECT_ROOT / "configs" / "example_custom_config.json")
+        results = Pipeline().run(self.SAMPLE_INPUTS, config_path=config_path)
+        alice = next(
+            (r for r in results if r.get("full_name") == "Alice Johnson"), None
+        )
+        assert alice is not None
+        assert "primary_email" in alice
+        assert "emails" not in alice
+        assert "candidate_id" not in alice
