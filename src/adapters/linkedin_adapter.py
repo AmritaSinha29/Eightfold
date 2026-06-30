@@ -1,119 +1,112 @@
-"""Adapter for LinkedIn data.
+"""Adapter for LinkedIn data exports (pre-exported JSON file).
 
-IMPORTANT: LinkedIn has no public API and scraping violates their Terms of Service.
-This adapter accepts a pre-exported JSON file (LinkedIn data export, or a mock
-produced for testing). This limitation is documented in the README.
-
-In a production system this would integrate with a licensed data provider
-(e.g., Proxycurl, People Data Labs).
-
-Expected JSON shape (LinkedIn data export or compatible mock):
-{
-  "firstName": "Alice",
-  "lastName": "Johnson",
-  "headline": "Software Engineer | Python",
-  "geoLocationName": "San Francisco Bay Area",
-  "positions": [
-    {
-      "companyName": "Acme Corp",
-      "title": "Software Engineer",
-      "timePeriod": {"startDate": {"month": 3, "year": 2022}, "endDate": null},
-      "description": "..."
-    }
-  ],
-  "educations": [
-    {
-      "schoolName": "UC Berkeley",
-      "degreeName": "Bachelor of Science",
-      "fieldOfStudy": "Computer Science",
-      "timePeriod": {"endDate": {"year": 2022}}
-    }
-  ]
-}
+IMPORTANT: LinkedIn has no public API and scraping violates their ToS.
+This adapter accepts a pre-exported or mocked JSON file only.
 """
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 from src.adapters.base import BaseAdapter
-from src.models.raw_record import RawEducation, RawExperience, RawRecord
+from src.models.raw_record import RawEducation, RawExperience, RawRecord, RawSkill
+
+logger = logging.getLogger(__name__)
 
 
 class LinkedInAdapter(BaseAdapter):
-    """Reads LinkedIn data from a pre-exported or mocked JSON file."""
+    """Reads a LinkedIn data export JSON and returns a single RawRecord."""
 
     SOURCE_NAME = "linkedin"
 
     def can_handle(self, path: str) -> bool:
-        """Return True if path ends with .json and contains 'linkedin' in the filename.
-
-        Args:
-            path: File path to check.
-        """
-        # TODO: p = Path(path); p.suffix.lower() == ".json" and "linkedin" in p.stem.lower()
-        raise NotImplementedError
+        p = Path(path)
+        return p.suffix.lower() == ".json" and "linkedin" in p.stem.lower()
 
     def load(self, path: str) -> list[RawRecord]:
-        """Parse a LinkedIn export JSON and return a single-element RawRecord list.
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            return [self._entry_to_record(data, path)]
+        except FileNotFoundError:
+            logger.warning("LinkedIn export not found: %s", path)
+            return []
+        except json.JSONDecodeError as exc:
+            logger.warning("LinkedIn JSON decode error in %s: %s", path, exc)
+            return []
+        except Exception as exc:
+            logger.warning("Unexpected error loading %s: %s", path, exc)
+            return []
 
-        Args:
-            path: Path to the LinkedIn JSON export file.
+    def _entry_to_record(self, data: dict[str, Any], source_path: str) -> RawRecord:
+        first = data.get("firstName", "").strip()
+        last = data.get("lastName", "").strip()
+        full_name = f"{first} {last}".strip() or None
 
-        Returns:
-            [RawRecord] on success; [] on FileNotFoundError, JSONDecodeError, or
-            any other failure.
-        """
-        # TODO: open + json.load
-        # TODO: return [_entry_to_record(data)]
-        # TODO: Catch FileNotFoundError, json.JSONDecodeError → return []
-        raise NotImplementedError
+        email = data.get("emailAddress")
+        emails = [email] if email else []
 
-    def _entry_to_record(self, data: dict[str, Any]) -> RawRecord:
-        """Map LinkedIn JSON fields to a RawRecord.
+        skills = [
+            RawSkill(name=str(s).strip(), source_name=self.SOURCE_NAME)
+            for s in data.get("skills", [])
+            if s
+        ]
 
-        Args:
-            data: Parsed JSON dict from the LinkedIn export file.
+        positions = [self._parse_position(p) for p in data.get("positions", [])]
+        educations = [self._parse_education(e) for e in data.get("educations", [])]
 
-        Returns:
-            Populated RawRecord.
-        """
-        # TODO: full_name = (data.get("firstName", "") + " " + data.get("lastName", "")).strip()
-        # TODO: headline = data.get("headline")
-        # TODO: location from geoLocationName (raw, pre-normalization)
-        # TODO: positions → [_parse_position(p) for p in data.get("positions", [])]
-        # TODO: educations → [_parse_education(e) for e in data.get("educations", [])]
-        # TODO: Return RawRecord(source_name=self.SOURCE_NAME, source_path=..., ...)
-        raise NotImplementedError
+        # geoLocationName is a freeform string; kept raw for the normalizer
+        geo = data.get("geoLocationName")
+
+        return RawRecord(
+            source_name=self.SOURCE_NAME,
+            source_path=source_path,
+            full_name=full_name,
+            emails=emails,
+            headline=data.get("headline"),
+            location_city=geo,
+            skills=skills,
+            experience=positions,
+            education=educations,
+        )
 
     def _parse_position(self, pos: dict[str, Any]) -> RawExperience:
-        """Convert one LinkedIn position entry to RawExperience.
+        time_period = pos.get("timePeriod") or {}
+        start_date = time_period.get("startDate") or {}
+        end_date = time_period.get("endDate")
 
-        Args:
-            pos: One element from the "positions" array.
+        start: str | None = None
+        if start_date:
+            m = start_date.get("month", 1)
+            y = start_date.get("year")
+            if y:
+                start = f"{m}/{y}"
 
-        Returns:
-            RawExperience with raw date strings.
-        """
-        # TODO: company = pos.get("companyName")
-        # TODO: title = pos.get("title")
-        # TODO: Extract startDate: {"month": M, "year": Y} → raw string "M/Y"
-        # TODO: Extract endDate: null → None (current role), else "M/Y"
-        # TODO: description → summary
-        raise NotImplementedError
+        end: str | None = None
+        if end_date:
+            m = end_date.get("month", 1)
+            y = end_date.get("year")
+            if y:
+                end = f"{m}/{y}"
+
+        return RawExperience(
+            company=pos.get("companyName"),
+            title=pos.get("title"),
+            start=start,
+            end=end,
+            summary=pos.get("description"),
+        )
 
     def _parse_education(self, edu: dict[str, Any]) -> RawEducation:
-        """Convert one LinkedIn education entry to RawEducation.
+        time_period = edu.get("timePeriod") or {}
+        end_date = time_period.get("endDate") or {}
+        end_year = end_date.get("year") if end_date else None
 
-        Args:
-            edu: One element from the "educations" array.
-
-        Returns:
-            RawEducation with raw field values.
-        """
-        # TODO: institution = edu.get("schoolName")
-        # TODO: degree = edu.get("degreeName")
-        # TODO: field = edu.get("fieldOfStudy")
-        # TODO: end_year = str(edu.get("timePeriod", {}).get("endDate", {}).get("year"))
-        raise NotImplementedError
+        return RawEducation(
+            institution=edu.get("schoolName"),
+            degree=edu.get("degreeName"),
+            field=edu.get("fieldOfStudy"),
+            end_year=str(end_year) if end_year else None,
+        )
