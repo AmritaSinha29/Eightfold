@@ -1,98 +1,106 @@
-"""Adapter for recruiter CSV exports.
-
-Expected columns (case-insensitive): name, email, phone, current_company, title.
-Extra columns are stored in RawRecord.extra.
-"""
+"""Adapter for recruiter CSV exports."""
 from __future__ import annotations
 
 import csv
+import logging
 from pathlib import Path
 from typing import Optional
 
 from src.adapters.base import BaseAdapter
 from src.models.raw_record import RawExperience, RawRecord
 
+logger = logging.getLogger(__name__)
+
 
 class CSVAdapter(BaseAdapter):
-    """Reads recruiter CSV exports and emits one RawRecord per candidate row.
-
-    The adapter resolves column headers case-insensitively and supports
-    common aliases (e.g. "full_name" for "name"). Any column that does not
-    map to a canonical field is stored in RawRecord.extra.
-    """
+    """Reads recruiter CSV exports and emits one RawRecord per candidate row."""
 
     SOURCE_NAME = "csv"
 
-    # Maps canonical internal field → acceptable CSV header aliases (lowercase).
     FIELD_ALIASES: dict[str, list[str]] = {
-        "name": ["name", "full_name", "candidate_name", "candidate"],
-        "email": ["email", "email_address", "e-mail", "emailaddress"],
-        "phone": ["phone", "phone_number", "mobile", "cell", "telephone"],
+        "name":            ["name", "full_name", "candidate_name", "candidate"],
+        "email":           ["email", "email_address", "e-mail", "emailaddress"],
+        "phone":           ["phone", "phone_number", "mobile", "cell", "telephone"],
         "current_company": ["current_company", "company", "employer", "organization"],
-        "title": ["title", "job_title", "position", "role"],
+        "title":           ["title", "job_title", "position", "role"],
     }
 
     def can_handle(self, path: str) -> bool:
-        """Return True if the path has a .csv extension.
-
-        Args:
-            path: File path to check.
-        """
-        # TODO: return Path(path).suffix.lower() == ".csv"
-        raise NotImplementedError
+        return Path(path).suffix.lower() == ".csv"
 
     def load(self, path: str) -> list[RawRecord]:
-        """Parse a CSV file and return one RawRecord per non-empty row.
+        try:
+            encoding = "utf-8"
+            try:
+                with open(path, encoding="utf-8") as probe:
+                    probe.read()
+            except UnicodeDecodeError:
+                encoding = "latin-1"
 
-        Tries UTF-8 encoding first, falls back to latin-1.
-        Returns [] on FileNotFoundError, csv.Error, or any other exception.
+            with open(path, encoding=encoding, newline="") as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+                fieldnames = list(reader.fieldnames or [])
 
-        Args:
-            path: Path to the .csv file.
-
-        Returns:
-            List of RawRecord objects; empty list on any failure.
-        """
-        # TODO: Try open(path, encoding="utf-8"), fallback to "latin-1"
-        # TODO: csv.DictReader over the file
-        # TODO: _resolve_header(reader.fieldnames) → header_map
-        # TODO: [_row_to_record(row, header_map) for row in reader if any(row.values())]
-        # TODO: Catch FileNotFoundError, csv.Error, Exception → log warning, return []
-        raise NotImplementedError
+            header_map = self._resolve_header(fieldnames)
+            return [
+                self._row_to_record(row, header_map, path)
+                for row in rows
+                if any(v and v.strip() for v in row.values())
+            ]
+        except FileNotFoundError:
+            logger.warning("CSV file not found: %s", path)
+            return []
+        except csv.Error as exc:
+            logger.warning("CSV parse error in %s: %s", path, exc)
+            return []
+        except Exception as exc:
+            logger.warning("Unexpected error loading %s: %s", path, exc)
+            return []
 
     def _resolve_header(self, fieldnames: list[str]) -> dict[str, Optional[str]]:
-        """Build a mapping of canonical field → actual CSV header, or None if absent.
-
-        Args:
-            fieldnames: Header strings as reported by csv.DictReader.
-
-        Returns:
-            Dict like {"name": "full_name", "email": None, ...} where None means
-            the column was not found in this file.
-        """
-        # TODO: Lowercase + strip each header
-        # TODO: For each canonical field, find first matching alias in lowercased headers
-        # TODO: Return dict {canonical: actual_header_or_None}
-        raise NotImplementedError
+        lowered = {h.lower().strip(): h for h in fieldnames}
+        result: dict[str, Optional[str]] = {}
+        for canonical, aliases in self.FIELD_ALIASES.items():
+            result[canonical] = next(
+                (lowered[alias] for alias in aliases if alias in lowered), None
+            )
+        return result
 
     def _row_to_record(
         self,
         row: dict[str, str],
         header_map: dict[str, Optional[str]],
+        source_path: str,
     ) -> RawRecord:
-        """Convert one CSV row to a RawRecord.
+        def get(field: str) -> Optional[str]:
+            col = header_map.get(field)
+            if col is None:
+                return None
+            val = row.get(col, "").strip()
+            return val if val else None
 
-        Args:
-            row: Raw row dict from csv.DictReader.
-            header_map: Output of _resolve_header.
+        name = get("name")
+        email = get("email")
+        phone = get("phone")
+        company = get("current_company")
+        title = get("title")
 
-        Returns:
-            A RawRecord with fields populated from the row.
-        """
-        # TODO: Extract name → full_name (strip)
-        # TODO: Extract email → emails list (non-empty only)
-        # TODO: Extract phone → phones list (raw, pre-E.164)
-        # TODO: Build RawExperience(company=current_company, title=title) → experience[0]
-        # TODO: All unmapped columns → extra dict
-        # TODO: Return RawRecord(source_name=self.SOURCE_NAME, source_path=..., ...)
-        raise NotImplementedError
+        mapped_cols = {h for h in header_map.values() if h is not None}
+        extra = {k: v for k, v in row.items() if k not in mapped_cols and v and v.strip()}
+
+        experience = (
+            [RawExperience(company=company, title=title)]
+            if company or title
+            else []
+        )
+
+        return RawRecord(
+            source_name=self.SOURCE_NAME,
+            source_path=source_path,
+            full_name=name,
+            emails=[email] if email else [],
+            phones=[phone] if phone else [],
+            experience=experience,
+            extra=extra,
+        )
